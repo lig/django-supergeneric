@@ -1,8 +1,10 @@
+from json import dump
+
 from django.conf.urls.defaults import patterns, url
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
 from django.forms.models import modelform_factory
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.views.generic import (ListView, DetailView, CreateView, UpdateView,
     DeleteView)
 from django.views.generic.detail import SingleObjectMixin
@@ -16,6 +18,16 @@ class AllInOneViewBase(type):
         
         cls = type.__new__(cls, *args, **kwargs)
         
+        class JSONResponseMixin(object):
+            def render_to_response(self, context):
+                if self.request.is_ajax():
+                    response = HttpResponse(content_type='application/json')
+                    dump(context, response)
+                else:
+                    response = super(JSONResponseMixin,
+                        self).render_to_response(context)
+                return response
+        
         class OwnerObjectMixin(object):
             def get_owner_object(self, queryset=None):
                 object = SingleObjectMixin.get_object(self, queryset=queryset)
@@ -24,13 +36,13 @@ class AllInOneViewBase(type):
                 else:
                     raise Http404
         
-        class AIOListView(ListView):
+        class AIOListView(JSONResponseMixin, ListView):
             pass
         
-        class AIODetailView(DetailView):
+        class AIODetailView(JSONResponseMixin, DetailView):
             pass
         
-        class AIOCreateView(CreateView):
+        class AIOCreateView(JSONResponseMixin, CreateView):
             if cls.require_owner_to_update:
                 def form_valid(self, form):
                     self.object = form.save(commit=False)
@@ -42,7 +54,7 @@ class AllInOneViewBase(type):
                 def dispatch(self, request, *args, **kwargs):
                     return super(AIOCreateView, self).dispatch(request, *args, **kwargs)
         
-        class AIOUpdateView(OwnerObjectMixin, UpdateView):
+        class AIOUpdateView(JSONResponseMixin, OwnerObjectMixin, UpdateView):
             if cls.require_owner_to_update:
                 get_object = OwnerObjectMixin.get_owner_object
             if cls.require_login_to_create:
@@ -50,7 +62,7 @@ class AllInOneViewBase(type):
                 def dispatch(self, request, *args, **kwargs):
                     return super(AIOUpdateView, self).dispatch(request, *args, **kwargs)
         
-        class AIODeleteView(OwnerObjectMixin, DeleteView):
+        class AIODeleteView(JSONResponseMixin, OwnerObjectMixin, DeleteView):
             def get_success_url(self):
                 return reverse('%s-list' % cls.context_object_name)
             if cls.require_owner_to_update:
@@ -72,6 +84,7 @@ class AllInOneViewBase(type):
 class AllInOneView(object):
     __metaclass__ = AllInOneViewBase
     
+    queryset = None
     paginate_by = None
     list_template_name = None
     detail_template_name = None
@@ -91,11 +104,15 @@ class AllInOneView(object):
         if not self.model:
             raise Exception('Need to provide model class.')
     
+    def get_queryset(self):
+        return self.queryset
+    
     def as_list_view(self, *args, **kwargs):
         return self.ListView.as_view(
             template_name=self.list_template_name,
             model=self.model,
             context_object_name='%s_list' % self.context_object_name,
+            queryset=self.get_queryset(),
             paginate_by=self.paginate_by)
     
     def as_detail_view(self, *args, **kwargs):
