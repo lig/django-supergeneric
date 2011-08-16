@@ -1,6 +1,7 @@
 from django.conf.urls.defaults import patterns, url
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
+from django.forms.models import modelform_factory
 from django.http import Http404
 from django.views.generic import (ListView, DetailView, CreateView, UpdateView,
     DeleteView)
@@ -81,7 +82,14 @@ class AllInOneView(object):
     form_class = None
     require_login_to_create = True
     require_owner_to_update = True
-    owner_field_name = None
+    owner_field_name = 'owner'
+    
+    def __init__(self, **kwargs):
+        super(AllInOneView, self).__init__()
+        map(lambda key: setattr(self, key, kwargs[key]), kwargs)
+        
+        if not self.model:
+            raise Exception('Need to provide model class.')
     
     def as_list_view(self, *args, **kwargs):
         return self.ListView.as_view(
