@@ -3,7 +3,6 @@ from json import dump
 from django.conf.urls.defaults import patterns, url
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
-from django.forms.models import modelform_factory
 from django.http import Http404, HttpResponse
 from django.views.generic import (ListView, DetailView, CreateView, UpdateView,
     DeleteView)
@@ -18,13 +17,23 @@ class AllInOneViewBase(type):
         
         cls = type.__new__(cls, *args, **kwargs)
         
-        class JSONResponseMixin(object):
+        cls.pk_name = '%s_pk' % (cls.context_object_name or
+            cls.__name__.lower())
+        
+        class AIOBaseMixin(object):
+            
+            def as_view(self, request, *args, **kwargs):
+                if cls.pk_name in kwargs:
+                    kwargs['pk'] = kwargs[cls.pk_name]
+                return super(AIOBaseMixin, self).as_view(request, *args,
+                    **kwargs)
+            
             def render_to_response(self, context):
                 if self.request.is_ajax():
                     response = HttpResponse(content_type='application/json')
                     dump(context, response)
                 else:
-                    response = super(JSONResponseMixin,
+                    response = super(AIOBaseMixin,
                         self).render_to_response(context)
                 return response
         
@@ -36,33 +45,41 @@ class AllInOneViewBase(type):
                 else:
                     raise Http404
         
-        class AIOListView(JSONResponseMixin, ListView):
+        class AIOListView(AIOBaseMixin, ListView):
             pass
         
-        class AIODetailView(JSONResponseMixin, DetailView):
-            pass
+        class AIODetailView(AIOBaseMixin, DetailView):
+            
+            def get_context_data(self, **kwargs):
+                context = super(AIODetailView, self).get_context_data(**kwargs)
+                for child_name in cls.children:
+                    context.update(cls.children[child_name].get_context_data())
+                return context
         
-        class AIOCreateView(JSONResponseMixin, CreateView):
+        class AIOCreateView(AIOBaseMixin, CreateView):
             if cls.require_owner_to_update:
                 def form_valid(self, form):
                     self.object = form.save(commit=False)
-                    setattr(self.object, cls.owner_field_name, self.request.user)
+                    setattr(self.object, cls.owner_field_name,
+                        self.request.user)
                     self.object.save()
                     return FormMixin.form_valid(self, form)
             if cls.require_login_to_create:
                 @method_decorator(login_required)
                 def dispatch(self, request, *args, **kwargs):
-                    return super(AIOCreateView, self).dispatch(request, *args, **kwargs)
+                    return super(AIOCreateView, self).dispatch(request, *args,
+                        **kwargs)
         
-        class AIOUpdateView(JSONResponseMixin, OwnerObjectMixin, UpdateView):
+        class AIOUpdateView(AIOBaseMixin, OwnerObjectMixin, UpdateView):
             if cls.require_owner_to_update:
                 get_object = OwnerObjectMixin.get_owner_object
             if cls.require_login_to_create:
                 @method_decorator(login_required)
                 def dispatch(self, request, *args, **kwargs):
-                    return super(AIOUpdateView, self).dispatch(request, *args, **kwargs)
+                    return super(AIOUpdateView, self).dispatch(request, *args,
+                        **kwargs)
         
-        class AIODeleteView(JSONResponseMixin, OwnerObjectMixin, DeleteView):
+        class AIODeleteView(AIOBaseMixin, OwnerObjectMixin, DeleteView):
             def get_success_url(self):
                 return reverse('%s-list' % cls.context_object_name)
             if cls.require_owner_to_update:
@@ -70,7 +87,8 @@ class AllInOneViewBase(type):
             if cls.require_login_to_create:
                 @method_decorator(login_required)
                 def dispatch(self, request, *args, **kwargs):
-                    return super(AIODeleteView, self).dispatch(request, *args, **kwargs)
+                    return super(AIODeleteView, self).dispatch(request, *args,
+                        **kwargs)
         
         cls.ListView = AIOListView
         cls.DetailView = AIODetailView
@@ -96,6 +114,7 @@ class AllInOneView(object):
     require_login_to_create = True
     require_owner_to_update = True
     owner_field_name = 'owner'
+    children = ()
     
     def __init__(self, **kwargs):
         super(AllInOneView, self).__init__()
@@ -103,7 +122,7 @@ class AllInOneView(object):
         
         if not self.model:
             raise Exception('Need to provide model class.')
-    
+        
     def get_queryset(self):
         return self.queryset
     
@@ -141,14 +160,19 @@ class AllInOneView(object):
             model=self.model)
     
     def get_urlpatterns(self, url_prefix):
-        return patterns('',
+        object_prefix = r'%s(?P<%s>\d+)/' % (url_prefix, self.pk_name)
+        urlpatterns = patterns('',
             url(r'^%s$' % url_prefix, self.as_list_view(),
                 name='%s-list' % self.context_object_name),
-            url(r'^%s(?P<pk>\d+)/$' % url_prefix, self.as_detail_view(),
+            url(r'^%s$' % object_prefix, self.as_detail_view(),
                 name=self.context_object_name),
             url(r'^%sadd/$' % url_prefix, self.as_create_view(),
                 name='%s-add' % self.context_object_name),
-            url(r'^%s(?P<pk>\d+)/edit/$' % url_prefix, self.as_update_view(),
+            url(r'^%sedit/$' % object_prefix, self.as_update_view(),
                 name='%s-edit' % self.context_object_name),
-            url(r'^%s(?P<pk>\d+)/delete/$' % url_prefix, self.as_delete_view(),
+            url(r'^%sdelete/$' % object_prefix, self.as_delete_view(),
                 name='%s-delete' % self.context_object_name))
+        for child_name, child in self.children:
+            urlpatterns += child.get_urlpatterns(
+                object_prefix + '%s/' % child_name)
+        return urlpatterns
