@@ -22,20 +22,26 @@ class AllInOneViewBase(type):
         
         class AIOBaseMixin(object):
             
-            def as_view(self, request, *args, **kwargs):
+            def dispatch(self, request, *args, **kwargs):
                 if cls.pk_name in kwargs:
                     kwargs['pk'] = kwargs[cls.pk_name]
-                return super(AIOBaseMixin, self).as_view(request, *args,
+                return super(AIOBaseMixin, self).dispatch(request, *args,
                     **kwargs)
             
             def render_to_response(self, context):
-                if self.request.is_ajax():
+                if 'as_child' in self.kwargs and self.kwargs['as_child']:
+                    response = context
+                elif self.request.is_ajax():
                     response = HttpResponse(content_type='application/json')
                     dump(context, response)
                 else:
                     response = super(AIOBaseMixin,
                         self).render_to_response(context)
                 return response
+            
+            def get_queryset(self):
+                queryset = cls.get_queryset(**self.kwargs)
+                return queryset or super(AIOBaseMixin, self).get_queryset()
         
         class OwnerObjectMixin(object):
             def get_owner_object(self, queryset=None):
@@ -49,11 +55,12 @@ class AllInOneViewBase(type):
             pass
         
         class AIODetailView(AIOBaseMixin, DetailView):
-            
             def get_context_data(self, **kwargs):
                 context = super(AIODetailView, self).get_context_data(**kwargs)
-                for child_name in cls.children:
-                    context.update(cls.children[child_name].get_context_data())
+                for _child_name, child in cls.children:
+                    child_view = child.as_list_view()
+                    context.update(child_view(self.request, as_child=True,
+                        **self.kwargs))
                 return context
         
         class AIOCreateView(AIOBaseMixin, CreateView):
@@ -102,7 +109,6 @@ class AllInOneViewBase(type):
 class AllInOneView(object):
     __metaclass__ = AllInOneViewBase
     
-    queryset = None
     paginate_by = None
     list_template_name = None
     detail_template_name = None
@@ -122,42 +128,47 @@ class AllInOneView(object):
         
         if not self.model:
             raise Exception('Need to provide model class.')
-        
-    def get_queryset(self):
-        return self.queryset
     
-    def as_list_view(self, *args, **kwargs):
+    @classmethod
+    def get_queryset(cls, **kwargs):
+        return None
+    
+    def as_list_view(self, **kwargs):
         return self.ListView.as_view(
             template_name=self.list_template_name,
             model=self.model,
             context_object_name='%s_list' % self.context_object_name,
-            queryset=self.get_queryset(),
-            paginate_by=self.paginate_by)
+            paginate_by=self.paginate_by,
+            **kwargs)
     
-    def as_detail_view(self, *args, **kwargs):
+    def as_detail_view(self, **kwargs):
         return self.DetailView.as_view(
             template_name=self.detail_template_name,
             model=self.model,
-            context_object_name=self.context_object_name)
+            context_object_name=self.context_object_name,
+            **kwargs)
     
-    def as_create_view(self, *args, **kwargs):
+    def as_create_view(self, **kwargs):
         return self.CreateView.as_view(
             template_name=self.form_template_name,
             model=self.model,
             context_object_name=self.context_object_name,
-            form_class=self.form_class)
+            form_class=self.form_class,
+            **kwargs)
     
-    def as_update_view(self, *args, **kwargs):
+    def as_update_view(self, **kwargs):
         return self.UpdateView.as_view(
             template_name=self.form_template_name,
             model=self.model,
             context_object_name=self.context_object_name,
-            form_class=self.form_class)
+            form_class=self.form_class,
+            **kwargs)
     
-    def as_delete_view(self, *args, **kwargs):
+    def as_delete_view(self, **kwargs):
         return self.DeleteView.as_view(
             template_name=self.delete_template_name,
-            model=self.model)
+            model=self.model,
+            **kwargs)
     
     def get_urlpatterns(self, url_prefix):
         object_prefix = r'%s(?P<%s>\d+)/' % (url_prefix, self.pk_name)
