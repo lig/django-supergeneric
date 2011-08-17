@@ -40,7 +40,7 @@ class AllInOneViewBase(type):
                 return response
             
             def get_queryset(self):
-                queryset = cls.get_queryset(**self.kwargs)
+                queryset = cls.get_queryset(self.request, **self.kwargs)
                 return queryset or super(AIOBaseMixin, self).get_queryset()
         
         class OwnerObjectMixin(object):
@@ -130,7 +130,7 @@ class AllInOneView(object):
             raise Exception('Need to provide model class.')
     
     @classmethod
-    def get_queryset(cls, **kwargs):
+    def get_queryset(cls, request, **kwargs):
         return None
     
     def as_list_view(self, **kwargs):
