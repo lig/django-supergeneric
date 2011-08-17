@@ -57,10 +57,12 @@ class AllInOneViewBase(type):
         class AIODetailView(AIOBaseMixin, DetailView):
             def get_context_data(self, **kwargs):
                 context = super(AIODetailView, self).get_context_data(**kwargs)
+                children_context = {}
                 for _child_name, child in cls.children:
                     child_view = child.as_list_view()
-                    context.update(child_view(self.request, as_child=True,
-                        **self.kwargs))
+                    children_context.update(child_view(self.request,
+                        as_child=True, parent_context=context, **self.kwargs))
+                context.update(children_context)
                 return context
         
         class AIOCreateView(AIOBaseMixin, CreateView):
