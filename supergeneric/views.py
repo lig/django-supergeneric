@@ -3,6 +3,7 @@ from json import dump
 from django.conf.urls.defaults import patterns, url
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
+from django.db.models.query import QuerySet
 from django.http import Http404, HttpResponse
 from django.views.generic import (ListView, DetailView, CreateView, UpdateView,
     DeleteView)
@@ -41,7 +42,11 @@ class AllInOneViewBase(type):
             
             def get_queryset(self):
                 queryset = cls.get_queryset(self.request, **self.kwargs)
-                return queryset or super(AIOBaseMixin, self).get_queryset()
+                
+                if not isinstance(queryset, QuerySet):
+                    queryset = super(AIOBaseMixin, self).get_queryset()
+                
+                return queryset
         
         class OwnerObjectMixin(object):
             def get_owner_object(self, queryset=None):
