@@ -11,6 +11,7 @@ class CommentView(AllInOneView):
     model = Comment
     form_class = CommentForm
     owner_field_name = 'author'
+    create_form_in_list = True
     
     @classmethod
     def get_queryset(cls, request, **kwargs):

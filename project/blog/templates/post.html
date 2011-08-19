@@ -9,4 +9,9 @@
 <p>{{ comment }}</p>
 {% endfor %}
 
+<form method="post" action="{% url comment-add post.pk %}">{% csrf_token %}
+{{ form.as_p }}
+<p><input type="submit"></p>
+</form>
+
 {% endblock content %}

@@ -57,7 +57,21 @@ class AllInOneViewBase(type):
                     raise Http404
         
         class AIOListView(AIOBaseMixin, ListView):
-            pass
+            if cls.create_form_in_list:
+                def get_context_data(self, **kwargs):
+                    context = super(AIOListView, self).get_context_data(
+                        **kwargs)
+                    create_view = cls().as_create_view()
+                    kwargs = {}
+                    kwargs.update(self.kwargs)
+                    parent_context = {}
+                    parent_context.update(kwargs.pop('parent_context', {}))
+                    parent_context.update(context)
+                    kwargs.update({'as_child': True})
+                    create_view_context = create_view(self.request,
+                        parent_context=parent_context, **kwargs)
+                    context.update(create_view_context)
+                    return context
         
         class AIODetailView(AIOBaseMixin, DetailView):
             def get_context_data(self, **kwargs):
@@ -128,6 +142,7 @@ class AllInOneView(object):
     require_owner_to_update = True
     owner_field_name = 'owner'
     children = ()
+    create_form_in_list = False
     
     def __init__(self, **kwargs):
         super(AllInOneView, self).__init__()
