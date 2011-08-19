@@ -18,7 +18,7 @@ class CommentView(AllInOneView):
         """ There is parent_context from Post Detail View in kwargs if
             kwargs['as_child'] set to True """
         
-        if 'post' in kwargs['parent_context']:
+        if 'as_child' in kwargs and 'post' in kwargs['parent_context']:
             post = kwargs['parent_context']['post']
             queryset = post.comment_set.all()
         else:
@@ -42,5 +42,5 @@ class PostView(AllInOneView):
     require_owner_to_update = True
     owner_field_name = 'author'
     children = (
-        ('comment', CommentView()),
+        ('comment', CommentView),
     )

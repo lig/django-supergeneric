@@ -6,7 +6,7 @@
 <p>{{ post }}</p>
 
 {% for comment in comment_list %}
-<p>{{ comment }}</p>
+<p><a name="c{{ comment.pk }}">{{ comment }}</p>
 {% endfor %}
 
 <form method="post" action="{% url comment-add post.pk %}">{% csrf_token %}

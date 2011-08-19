@@ -34,6 +34,5 @@ class Comment(models.Model):
     class Meta:
         ordering = ['created']
     
-    @models.permalink
     def get_absolute_url(self):
-        return ('comment', [self.post_id, self.pk])
+        return '%s#c%s' % (self.post.get_absolute_url(), self.pk)

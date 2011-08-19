@@ -3,6 +3,8 @@ from json import dump
 from django.conf.urls.defaults import patterns, url
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
+from django.db.models.related import RelatedObject
+from django.db.models.fields.related import ForeignKey
 from django.db.models.query import QuerySet
 from django.http import Http404, HttpResponse
 from django.views.generic import (ListView, DetailView, CreateView, UpdateView,
@@ -21,11 +23,19 @@ class AllInOneViewBase(type):
         cls.pk_name = '%s_pk' % (cls.context_object_name or
             cls.__name__.lower())
         
+        cls.children = map(
+            lambda (child_name, child_class): (child_name, child_class()),
+            cls.children)
+        
         class AIOBaseMixin(object):
             
+            parent = None
+            
             def dispatch(self, request, *args, **kwargs):
+                
                 if cls.pk_name in kwargs:
                     kwargs['pk'] = kwargs[cls.pk_name]
+                
                 return super(AIOBaseMixin, self).dispatch(request, *args,
                     **kwargs)
             
@@ -47,6 +57,16 @@ class AllInOneViewBase(type):
                     queryset = super(AIOBaseMixin, self).get_queryset()
                 
                 return queryset
+            
+            def get_context_data(self, **kwargs):
+                context = super(AIOBaseMixin, self).get_context_data(**kwargs)
+                
+                if self.parent:
+                    context.update({self.parent.get_context_object_name():
+                        self.parent.get_object(
+                            self.kwargs[self.parent.get_pk_name()])})
+                
+                return context
         
         class OwnerObjectMixin(object):
             def get_owner_object(self, queryset=None):
@@ -85,13 +105,17 @@ class AllInOneViewBase(type):
                 return context
         
         class AIOCreateView(AIOBaseMixin, CreateView):
-            if cls.require_owner_to_update:
-                def form_valid(self, form):
-                    self.object = form.save(commit=False)
+            def form_valid(self, form):
+                self.object = form.save(commit=False)
+                if cls.require_owner_to_update:
                     setattr(self.object, cls.owner_field_name,
                         self.request.user)
-                    self.object.save()
-                    return FormMixin.form_valid(self, form)
+                if self.parent:
+                    setattr(self.object, self.parent.get_fk_name(self.model),
+                        self.parent.get_object(
+                            self.kwargs[self.parent.get_pk_name()]))
+                self.object.save()
+                return FormMixin.form_valid(self, form)
             if cls.require_login_to_create:
                 @method_decorator(login_required)
                 def dispatch(self, request, *args, **kwargs):
@@ -192,20 +216,53 @@ class AllInOneView(object):
             model=self.model,
             **kwargs)
     
-    def get_urlpatterns(self, url_prefix):
+    def get_urlpatterns(self, url_prefix, parent=None):
         object_prefix = r'%s(?P<%s>\d+)/' % (url_prefix, self.pk_name)
         urlpatterns = patterns('',
-            url(r'^%s$' % url_prefix, self.as_list_view(),
+            url(r'^%s$' % url_prefix,
+                self.as_list_view(parent=parent),
                 name='%s-list' % self.context_object_name),
-            url(r'^%s$' % object_prefix, self.as_detail_view(),
+            url(r'^%s$' % object_prefix,
+                self.as_detail_view(parent=parent),
                 name=self.context_object_name),
-            url(r'^%sadd/$' % url_prefix, self.as_create_view(),
+            url(r'^%sadd/$' % url_prefix,
+                self.as_create_view(parent=parent),
                 name='%s-add' % self.context_object_name),
-            url(r'^%sedit/$' % object_prefix, self.as_update_view(),
+            url(r'^%sedit/$' % object_prefix,
+                self.as_update_view(parent=parent),
                 name='%s-edit' % self.context_object_name),
-            url(r'^%sdelete/$' % object_prefix, self.as_delete_view(),
+            url(r'^%sdelete/$' % object_prefix,
+                self.as_delete_view(parent=parent),
                 name='%s-delete' % self.context_object_name))
         for child_name, child in self.children:
             urlpatterns += child.get_urlpatterns(
-                object_prefix + '%s/' % child_name)
+                object_prefix + '%s/' % child_name,
+                parent=ParentAIOView(self.__class__))
         return urlpatterns
+
+
+class ParentAIOView(object):
+    
+    def __init__(self, parent_class=None):
+        
+        if issubclass(parent_class, AllInOneView):
+            self.parent_class = parent_class
+        else:
+            raise Exception('Parent class must be subclass of AllInOneView.')
+    
+    def get_pk_name(self):
+        return self.parent_class.pk_name
+    
+    def get_fk_name(self, model):
+        for field in model._meta.fields:
+            if (isinstance(field, ForeignKey) and
+              field.related.parent_model == self.parent_class.model):
+                return field.name
+    
+    def get_context_object_name(self):
+        return self.parent_class.context_object_name
+    
+    def get_object(self, pk):
+        if not hasattr(self, 'object'):
+            self.object = self.parent_class.model.objects.get(pk=pk)
+        return self.object
