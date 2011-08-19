@@ -126,7 +126,7 @@ class AllInOneView(object):
     
     def __init__(self, **kwargs):
         super(AllInOneView, self).__init__()
-        map(lambda key: setattr(self, key, kwargs[key]), kwargs)
+        self.__dict__.update(kwargs)
         
         if not self.model:
             raise Exception('Need to provide model class.')
