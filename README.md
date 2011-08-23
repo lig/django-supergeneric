@@ -21,7 +21,7 @@ Source tarball
 From source using pip
 ----------
 
-1. Run `pip install -e git://github.com/lig/django-supergeneric.git#django_supergeneric`.
+1. Run `pip install -e git://github.com/lig/django-supergeneric.git#egg=django_supergeneric`.
 
 
 Usage
