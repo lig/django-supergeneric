@@ -27,6 +27,8 @@ From source using pip
 Usage
 ==========
 
+See [example project source code](https://github.com/lig/django-supergeneric/tree/master/project).
+
 **TODO**
 
 
