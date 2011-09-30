@@ -16,7 +16,7 @@ Source tarball
 ----------
 
 1. Download [latest source](https://github.com/lig/django-supergeneric/tarball/master).
-2. Than install downloaded tarball with **pip** (`pip install archive-name.tar.gz`) or with **easy_install** (`easy_install archive-name.tar.gz`).
+2. Then install downloaded tarball with **pip** (`pip install archive-name.tar.gz`) or with **easy_install** (`easy_install archive-name.tar.gz`).
 
 From source using pip
 ----------
