@@ -6,7 +6,7 @@ from setuptools import setup
 setup(
     install_requires=['distribute', 'Django<1.4'],
     name='django-supergeneric',
-    version='1.0',
+    version='1.1-dev',
     description='django-supergeneric is a small utility library that provides generic aggregator for five most used generic views for any model',
     author='Serge Matveenko',
     author_email='s@matveenko.ru',
