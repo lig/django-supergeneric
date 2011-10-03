@@ -1,10 +1,7 @@
-
 About
 ==========
 
 **django-supergeneric** is a small utility library that provides generic aggregator for five most used generic views for any model.
-
-There is no official release yet, but source looks pretty stable now.
 
 [django-supergeneric homepage](https://github.com/lig/django-supergeneric)
 
@@ -15,7 +12,7 @@ Installation
 Stable from PyPi
 ----------------
 
-1. Run pip install django-supergeneric
+1. Run `pip install django-supergeneric`
 
 Latest from source tarball
 ----------
