@@ -12,13 +12,18 @@ There is no official release yet, but source looks pretty stable now.
 Installation
 ==========
 
-Source tarball
+Stable from PyPi
+----------------
+
+1. Run pip install django-supergeneric
+
+Latest from source tarball
 ----------
 
 1. Download [latest source](https://github.com/lig/django-supergeneric/tarball/master).
 2. Then install downloaded tarball with **pip** (`pip install archive-name.tar.gz`) or with **easy_install** (`easy_install archive-name.tar.gz`).
 
-From source using pip
+Latest from source using pip
 ----------
 
 1. Run `pip install -e git://github.com/lig/django-supergeneric.git#egg=django_supergeneric`.
