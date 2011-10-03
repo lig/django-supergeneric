@@ -3,7 +3,6 @@ from json import dump
 from django.conf.urls.defaults import patterns, url
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
-from django.db.models.related import RelatedObject
 from django.db.models.fields.related import ForeignKey
 from django.db.models.query import QuerySet
 from django.http import Http404, HttpResponse
@@ -15,30 +14,30 @@ from django.utils.decorators import method_decorator
 
 
 class AllInOneViewBase(type):
-    
+
     def __new__(cls, *args, **kwargs):
-        
+
         cls = type.__new__(cls, *args, **kwargs)
-        
+
         cls.pk_name = '%s_pk' % (cls.context_object_name or
             cls.__name__.lower())
-        
+
         cls.children = map(
             lambda (child_name, child_class): (child_name, child_class()),
             cls.children)
-        
+
         class AIOBaseMixin(object):
-            
+
             parent = None
-            
+
             def dispatch(self, request, *args, **kwargs):
-                
+
                 if cls.pk_name in kwargs:
                     kwargs['pk'] = kwargs[cls.pk_name]
-                
+
                 return super(AIOBaseMixin, self).dispatch(request, *args,
                     **kwargs)
-            
+
             def render_to_response(self, context):
                 if 'as_child' in self.kwargs and self.kwargs['as_child']:
                     response = context
@@ -49,25 +48,25 @@ class AllInOneViewBase(type):
                     response = super(AIOBaseMixin,
                         self).render_to_response(context)
                 return response
-            
+
             def get_queryset(self):
                 queryset = cls.get_queryset(self.request, **self.kwargs)
-                
+
                 if not isinstance(queryset, QuerySet):
                     queryset = super(AIOBaseMixin, self).get_queryset()
-                
+
                 return queryset
-            
+
             def get_context_data(self, **kwargs):
                 context = super(AIOBaseMixin, self).get_context_data(**kwargs)
-                
+
                 if self.parent:
                     context.update({self.parent.get_context_object_name():
                         self.parent.get_object(
                             self.kwargs[self.parent.get_pk_name()])})
-                
+
                 return context
-        
+
         class OwnerObjectMixin(object):
             def get_owner_object(self, queryset=None):
                 object = SingleObjectMixin.get_object(self, queryset=queryset)
@@ -75,7 +74,7 @@ class AllInOneViewBase(type):
                     return object
                 else:
                     raise Http404
-        
+
         class AIOListView(AIOBaseMixin, ListView):
             if cls.create_form_in_list:
                 def get_context_data(self, **kwargs):
@@ -92,7 +91,7 @@ class AllInOneViewBase(type):
                         parent_context=parent_context, **kwargs)
                     context.update(create_view_context)
                     return context
-        
+
         class AIODetailView(AIOBaseMixin, DetailView):
             def get_context_data(self, **kwargs):
                 context = super(AIODetailView, self).get_context_data(**kwargs)
@@ -103,7 +102,7 @@ class AllInOneViewBase(type):
                         as_child=True, parent_context=context, **self.kwargs))
                 context.update(children_context)
                 return context
-        
+
         class AIOCreateView(AIOBaseMixin, CreateView):
             def form_valid(self, form):
                 self.object = form.save(commit=False)
@@ -121,7 +120,7 @@ class AllInOneViewBase(type):
                 def dispatch(self, request, *args, **kwargs):
                     return super(AIOCreateView, self).dispatch(request, *args,
                         **kwargs)
-        
+
         class AIOUpdateView(AIOBaseMixin, OwnerObjectMixin, UpdateView):
             if cls.require_owner_to_update:
                 get_object = OwnerObjectMixin.get_owner_object
@@ -130,7 +129,7 @@ class AllInOneViewBase(type):
                 def dispatch(self, request, *args, **kwargs):
                     return super(AIOUpdateView, self).dispatch(request, *args,
                         **kwargs)
-        
+
         class AIODeleteView(AIOBaseMixin, OwnerObjectMixin, DeleteView):
             def get_success_url(self):
                 return reverse('%s-list' % cls.context_object_name)
@@ -141,19 +140,19 @@ class AllInOneViewBase(type):
                 def dispatch(self, request, *args, **kwargs):
                     return super(AIODeleteView, self).dispatch(request, *args,
                         **kwargs)
-        
+
         cls.ListView = AIOListView
         cls.DetailView = AIODetailView
         cls.CreateView = AIOCreateView
         cls.UpdateView = AIOUpdateView
         cls.DeleteView = AIODeleteView
-        
+
         return cls
 
 
 class AllInOneView(object):
     __metaclass__ = AllInOneViewBase
-    
+
     paginate_by = None
     list_template_name = None
     detail_template_name = None
@@ -167,18 +166,18 @@ class AllInOneView(object):
     owner_field_name = 'owner'
     children = ()
     create_form_in_list = False
-    
+
     def __init__(self, **kwargs):
         super(AllInOneView, self).__init__()
         self.__dict__.update(kwargs)
-        
+
         if not self.model:
             raise Exception('Need to provide model class.')
-    
+
     @classmethod
     def get_queryset(cls, request, **kwargs):
         return None
-    
+
     def as_list_view(self, **kwargs):
         return self.ListView.as_view(
             template_name=self.list_template_name,
@@ -186,14 +185,14 @@ class AllInOneView(object):
             context_object_name='%s_list' % self.context_object_name,
             paginate_by=self.paginate_by,
             **kwargs)
-    
+
     def as_detail_view(self, **kwargs):
         return self.DetailView.as_view(
             template_name=self.detail_template_name,
             model=self.model,
             context_object_name=self.context_object_name,
             **kwargs)
-    
+
     def as_create_view(self, **kwargs):
         return self.CreateView.as_view(
             template_name=self.form_template_name,
@@ -201,7 +200,7 @@ class AllInOneView(object):
             context_object_name=self.context_object_name,
             form_class=self.form_class,
             **kwargs)
-    
+
     def as_update_view(self, **kwargs):
         return self.UpdateView.as_view(
             template_name=self.form_template_name,
@@ -209,13 +208,13 @@ class AllInOneView(object):
             context_object_name=self.context_object_name,
             form_class=self.form_class,
             **kwargs)
-    
+
     def as_delete_view(self, **kwargs):
         return self.DeleteView.as_view(
             template_name=self.delete_template_name,
             model=self.model,
             **kwargs)
-    
+
     def get_urlpatterns(self, url_prefix, parent=None):
         object_prefix = r'%s(?P<%s>\d+)/' % (url_prefix, self.pk_name)
         urlpatterns = patterns('',
@@ -242,26 +241,26 @@ class AllInOneView(object):
 
 
 class ParentAIOView(object):
-    
+
     def __init__(self, parent_class=None):
-        
+
         if issubclass(parent_class, AllInOneView):
             self.parent_class = parent_class
         else:
             raise Exception('Parent class must be subclass of AllInOneView.')
-    
+
     def get_pk_name(self):
         return self.parent_class.pk_name
-    
+
     def get_fk_name(self, model):
         for field in model._meta.fields:
             if (isinstance(field, ForeignKey) and
               field.related.parent_model == self.parent_class.model):
                 return field.name
-    
+
     def get_context_object_name(self):
         return self.parent_class.context_object_name
-    
+
     def get_object(self, pk):
         if not hasattr(self, 'object'):
             self.object = self.parent_class.model.objects.get(pk=pk)
