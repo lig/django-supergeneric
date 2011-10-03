@@ -11,5 +11,6 @@ setup(
     author='Serge Matveenko',
     author_email='s@matveenko.ru',
     url='https://github.com/lig/django-supergeneric',
-    packages=['supergeneric']
+    packages=['supergeneric'],
+    test_suite='tests.DjangoSupergenericTests'
 )
